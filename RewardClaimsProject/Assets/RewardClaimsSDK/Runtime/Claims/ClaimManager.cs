@@ -109,8 +109,9 @@ namespace RewardClaims
         /// <returns>A task that completes when every retry has answered.</returns>
         /// <remarks>
         /// Succeeded and rejected claims are never sent again, and a claim already in flight is left to
-        /// its own request (the returned task doesn't wait for it). The SDK facade will call this
-        /// automatically once it exists.
+        /// its own request (the returned task doesn't wait for it). A claim whose resource is no longer
+        /// in the config is skipped with a warning and kept in the save as it is. The SDK facade will
+        /// call this automatically once it exists.
         /// </remarks>
         public Task RetryUnfinishedClaimsAsync()
         {
@@ -121,8 +122,24 @@ namespace RewardClaims
                 .Where(claim => !inFlight.ContainsKey(claim.RewardId))
                 .ToList();
 
-            // Through ClaimAsync with the record's own values, so every idempotency rule still applies.
-            var retries = unfinished.Select(claim => ClaimAsync(claim.RewardId, claim.ResourceId, claim.Amount));
+            var retries = new List<Task<ClaimRecord>>();
+            foreach (var claim in unfinished)
+            {
+                // A game update may have removed this claim's resource from the config. ClaimAsync would
+                // fault it as an unknown resource, and that one fault would fault the whole WhenAll. So
+                // skip it and leave the record as saved, like the wallet keeps a removed resource's
+                // balance: if the resource comes back, the claim is retried then.
+                if (!wallet.HasResource(claim.ResourceId))
+                {
+                    Debug.LogWarning($"Reward '{claim.RewardId}' is for '{claim.ResourceId}', which is no longer " +
+                                     "in the config; not retrying it.");
+                    continue;
+                }
+
+                // Through ClaimAsync with the record's own values, so every idempotency rule still applies.
+                retries.Add(ClaimAsync(claim.RewardId, claim.ResourceId, claim.Amount));
+            }
+
             return Task.WhenAll(retries);
         }
 
