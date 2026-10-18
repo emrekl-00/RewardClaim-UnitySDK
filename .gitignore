@@ -8,6 +8,7 @@ RewardClaimsProject/[Ll]ogs/
 RewardClaimsProject/[Uu]ser[Ss]ettings/
 RewardClaimsProject/[Mm]emoryCaptures/
 RewardClaimsProject/[Rr]ecordings/
+RewardClaimsProject/.utmp/
 
 # --- IDE / OS ---
 .vs/

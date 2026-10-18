@@ -5,7 +5,7 @@ namespace CoinCatcher
 {
     /// <summary>
     /// The player's basket. Moves left/right with A/D or the arrow keys, or follows the pointer
-    /// (mouse, and later touch) while it is pressed. Stays inside the camera's visible width.
+    /// (mouse in the Editor, a finger on a phone) while it is pressed. Stays inside the camera's visible width.
     /// </summary>
     // No Rigidbody2D here: a trigger only needs a Rigidbody2D on ONE of the two colliders, and the
     // falling coin already has one. The basket is just a collider the coins fly into.
