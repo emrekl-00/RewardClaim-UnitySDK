@@ -1,0 +1,24 @@
+# --- Unity generated folders (never committed; Unity rebuilds them) ---
+RewardClaimsProject/[Ll]ibrary/
+RewardClaimsProject/[Tt]emp/
+RewardClaimsProject/[Oo]bj/
+RewardClaimsProject/[Bb]uild/
+RewardClaimsProject/[Bb]uilds/
+RewardClaimsProject/[Ll]ogs/
+RewardClaimsProject/[Uu]ser[Ss]ettings/
+RewardClaimsProject/[Mm]emoryCaptures/
+RewardClaimsProject/[Rr]ecordings/
+
+# --- IDE / OS ---
+.vs/
+.idea/
+.vscode/
+*.csproj
+*.sln
+*.slnx
+*.user
+.DS_Store
+
+# --- Test / tooling output ---
+test-results.xml
+*.log
