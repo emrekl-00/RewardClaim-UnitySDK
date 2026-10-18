@@ -1,7 +1,8 @@
 namespace RewardClaims
 {
     /// <summary>Why the last attempt of a claim did not succeed.</summary>
-    // Saved as a number by JsonUtility, so never reorder or renumber these values.
+    // Saved as a number by JsonUtility, so never reorder or renumber these values; add new ones
+    // only at the end, with the next number.
     public enum ClaimError
     {
         /// <summary>No error: the claim hasn't failed (yet).</summary>
@@ -21,5 +22,8 @@ namespace RewardClaims
 
         /// <summary>The server answered, but the response couldn't be understood.</summary>
         InvalidResponse = 5,
+
+        /// <summary>The API failed in an unexpected way, e.g. threw an exception.</summary>
+        Unknown = 6,
     }
 }

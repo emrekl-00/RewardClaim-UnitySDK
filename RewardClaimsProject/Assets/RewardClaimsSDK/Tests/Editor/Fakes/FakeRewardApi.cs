@@ -14,6 +14,10 @@ namespace RewardClaims.Tests
 
         public bool HoldRequests { get; set; }
 
+        // When set, every request returns a task that failed with this exception (an API that throws
+        // after its first await). For a synchronous throw, throw from OnSend instead.
+        public Exception Fault { get; set; }
+
         public List<ClaimPayload> ReceivedPayloads { get; } = new List<ClaimPayload>();
 
         public int HeldCount => heldRequests.Count;
@@ -25,6 +29,9 @@ namespace RewardClaims.Tests
         {
             ReceivedPayloads.Add(payload);
             OnSend?.Invoke(payload);
+
+            if (Fault != null)
+                return Task.FromException<ApiResult>(Fault);
 
             // Already completed, so the manager's await continues immediately.
             if (!HoldRequests)
