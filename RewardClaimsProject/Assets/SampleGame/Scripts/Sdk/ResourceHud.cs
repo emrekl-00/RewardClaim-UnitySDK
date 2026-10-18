@@ -1,4 +1,3 @@
-using System.Linq;
 using RewardClaims;
 using TMPro;
 using UnityEngine;
@@ -26,10 +25,7 @@ namespace CoinCatcher
         private void OnEnable()
         {
             var wallet = RewardClaimsSdk.Wallet;
-
-            // The wallet only reports balances; the cap is a config rule, so read it from the
-            // same asset the SDK was started with.
-            maxLives = bootstrap.Config.Resources.First(resource => resource.Id == ResourceIds.Lives).MaxBalance;
+            maxLives = bootstrap.MaxLives;
 
             wallet.BalanceChanged += OnBalanceChanged;
             runGate.NoLivesLeft += OnNoLivesLeft;
