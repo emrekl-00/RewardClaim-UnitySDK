@@ -35,7 +35,7 @@ namespace RewardClaims.Tests
             store.Save();
 
             // This is exactly what lands in PlayerPrefs: field names become JSON keys.
-            Assert.That(storage.Load(Key), Is.EqualTo("{\"balances\":[{\"resourceId\":\"coins\",\"balance\":70}]}"));
+            Assert.That(storage.Load(Key), Is.EqualTo("{\"balances\":[{\"resourceId\":\"coins\",\"balance\":70}],\"claims\":[]}"));
         }
 
         [Test]

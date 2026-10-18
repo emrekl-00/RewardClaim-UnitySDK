@@ -41,9 +41,12 @@ namespace RewardClaims
                 var progress = JsonUtility.FromJson<PlayerProgress>(json);
                 if (progress != null)
                 {
-                    // Valid JSON without a "balances" field (e.g. "{}") must still give a usable list.
+                    // Valid JSON without a field (e.g. "{}", or a save from before claims existed)
+                    // must still give usable lists.
                     if (progress.balances == null)
                         progress.balances = new List<ResourceBalance>();
+                    if (progress.claims == null)
+                        progress.claims = new List<ClaimRecord>();
                     return progress;
                 }
             }
