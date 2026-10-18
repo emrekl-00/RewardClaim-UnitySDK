@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3801013f656e9451f9586ff7a04f8c5f, type: 3}
+  m_Name: BasicUsageConfig
+  m_EditorClassIdentifier: RewardClaims.Runtime::RewardClaims.RewardClaimsConfig
+  playerId: test-player
+  apiUrl: https://httpbin.org/anything
+  requestTimeoutSeconds: 10
+  resources:
+  - id: coins
+    startingBalance: 0
+    hasMaxBalance: 0
+    maxBalance: 0
+  - id: lives
+    startingBalance: 5
+    hasMaxBalance: 1
+    maxBalance: 5

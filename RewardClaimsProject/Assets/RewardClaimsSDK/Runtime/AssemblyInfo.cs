@@ -5,5 +5,5 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("RewardClaims.Tests.Editor")]
 
 // The PlayMode network tests build a ClaimManager by hand, and its constructor (like the wallet's
-// and the store's) is internal until the SDK facade exists.
+// and the store's) is internal: games get these objects from the RewardClaimsSdk facade.
 [assembly: InternalsVisibleTo("RewardClaims.Tests.PlayMode")]

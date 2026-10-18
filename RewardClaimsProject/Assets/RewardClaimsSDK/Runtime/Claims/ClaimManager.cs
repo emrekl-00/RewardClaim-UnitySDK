@@ -110,8 +110,8 @@ namespace RewardClaims
         /// <remarks>
         /// Succeeded and rejected claims are never sent again, and a claim already in flight is left to
         /// its own request (the returned task doesn't wait for it). A claim whose resource is no longer
-        /// in the config is skipped with a warning and kept in the save as it is. The SDK facade will
-        /// call this automatically once it exists.
+        /// in the config is skipped with a warning and kept in the save as it is. <see cref="RewardClaimsSdk"/>
+        /// calls this automatically at startup and when the app returns to the foreground.
         /// </remarks>
         public Task RetryUnfinishedClaimsAsync()
         {
