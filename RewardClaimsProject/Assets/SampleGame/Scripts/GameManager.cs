@@ -39,6 +39,14 @@ namespace CoinCatcher
         public int Caught { get; private set; }
         public int Missed { get; private set; }
 
+        // Public so a caller can check the rule BEFORE paying for a run (e.g. a life): asking
+        // StartLevel and finding out afterwards that it did nothing would waste the payment.
+        /// <summary>True when <see cref="StartLevel"/> would start a run (no run is in progress).</summary>
+        public bool CanStartLevel => State != GameState.Playing;
+
+        /// <summary>True when <see cref="StartNextLevel"/> would start a run (a level was just completed and another follows).</summary>
+        public bool CanStartNextLevel => State == GameState.LevelComplete && HasNextLevel;
+
         private void Awake()
         {
             // The basket only takes input during a run.
@@ -61,7 +69,7 @@ namespace CoinCatcher
         /// <summary>Starts (or restarts) a run of the current level. Used by Play, Retry and Replay.</summary>
         public void StartLevel()
         {
-            if (State == GameState.Playing)
+            if (!CanStartLevel)
                 return;
 
             Caught = 0;
@@ -78,7 +86,7 @@ namespace CoinCatcher
         /// <summary>Moves on to the next level and starts it. Only valid after completing a level.</summary>
         public void StartNextLevel()
         {
-            if (State != GameState.LevelComplete || !HasNextLevel)
+            if (!CanStartNextLevel)
                 return;
 
             LevelIndex++;

@@ -6,11 +6,13 @@ namespace CoinCatcher
 {
     /// <summary>
     /// Shows the level, the score and one panel per game state, and turns button clicks into
-    /// <see cref="GameManager"/> calls. It only displays state; the GameManager owns it.
+    /// run starts through the <see cref="RunGate"/>. It only displays state; the GameManager owns it.
     /// </summary>
     public class GameHud : MonoBehaviour
     {
         [SerializeField] private GameManager game;
+        [Tooltip("Every button that starts a run goes through here, so each run costs a life.")]
+        [SerializeField] private RunGate runGate;
 
         [Header("Always visible")]
         [SerializeField] private TMP_Text levelLabel;
@@ -34,11 +36,12 @@ namespace CoinCatcher
         private void Awake()
         {
             // Wired in code rather than in each Button's OnClick list, so every click handler is
-            // readable in one file.
-            playButton.onClick.AddListener(game.StartLevel);
-            replayButton.onClick.AddListener(game.StartLevel);
-            retryButton.onClick.AddListener(game.StartLevel);
-            nextButton.onClick.AddListener(game.StartNextLevel);
+            // readable in one file. The buttons call the RunGate, not the GameManager: a run has to
+            // be paid for with a life first.
+            playButton.onClick.AddListener(runGate.StartLevel);
+            replayButton.onClick.AddListener(runGate.StartLevel);
+            retryButton.onClick.AddListener(runGate.StartLevel);
+            nextButton.onClick.AddListener(runGate.StartNextLevel);
         }
 
         private void OnEnable()
