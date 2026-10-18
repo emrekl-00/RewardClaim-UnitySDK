@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using NUnit.Framework;
+using UnityEngine;
+using UnityEngine.TestTools;
 
 namespace RewardClaims.Tests
 {
@@ -26,6 +29,13 @@ namespace RewardClaims.Tests
             Launch();
         }
 
+        [TearDown]
+        public void TearDown()
+        {
+            // Every test answers its own held requests; this only matters when a test failed half-way.
+            api.AnswerAllHeld(ApiResult.Failure(ClaimError.Timeout));
+        }
+
         private void Launch()
         {
             var store = new ProgressStore(storage, TestWallets.PlayerId);
@@ -37,6 +47,20 @@ namespace RewardClaims.Tests
         private ClaimRecord SavedClaim(string rewardId)
         {
             return new ProgressStore(storage, TestWallets.PlayerId).Data.claims.Find(c => c.RewardId == rewardId);
+        }
+
+        // Writes a claim straight to storage as an earlier app session would have left it, then
+        // launches again so the manager under test loads it.
+        private void LaunchWithClaimFromPreviousSession(Action<ClaimRecord> setStatus)
+        {
+            var previousSession = new ProgressStore(storage, TestWallets.PlayerId);
+            var claim = new ClaimRecord(RewardId, "coins", 50);
+            claim.MarkAttempt();
+            setStatus(claim);
+            previousSession.Data.claims.Add(claim);
+            previousSession.Save();
+
+            Launch();
         }
 
         [Test]
@@ -131,8 +155,10 @@ namespace RewardClaims.Tests
             Assert.That(SavedClaim(RewardId).Status, Is.EqualTo(ClaimStatus.Failed));
         }
 
+        // --- Idempotency: one reward id is granted at most once, however often it is claimed ---
+
         [Test]
-        public async Task ClaimAsync_SameRewardIdAgain_ReturnsExistingClaimWithoutSending()
+        public async Task ClaimAsync_SucceededRewardIdAgain_ReturnsSameRecordWithoutSending()
         {
             var first = await manager.ClaimAsync(RewardId, "coins", 50);
 
@@ -141,6 +167,146 @@ namespace RewardClaims.Tests
             Assert.That(second, Is.SameAs(first));
             Assert.That(api.ReceivedPayloads, Has.Count.EqualTo(1));
             Assert.That(wallet.GetBalance("coins"), Is.EqualTo(150));
+        }
+
+        [Test]
+        public async Task ClaimAsync_TwoCallsWhileRequestInFlight_ShareOneRequestAndGrantOnce()
+        {
+            api.HoldRequests = true;
+
+            // Act: a double tap; the second call comes before the server has answered the first.
+            var first = manager.ClaimAsync(RewardId, "coins", 50);
+            var second = manager.ClaimAsync(RewardId, "coins", 50);
+
+            // Assert while waiting: one request, the same task, nothing granted yet.
+            Assert.That(second, Is.SameAs(first));
+            Assert.That(api.ReceivedPayloads, Has.Count.EqualTo(1));
+            Assert.That(wallet.GetBalance("coins"), Is.EqualTo(100));
+
+            api.AnswerHeld(ApiResult.Success());
+            var claim = await first;
+
+            Assert.That(claim.Status, Is.EqualTo(ClaimStatus.Succeeded));
+            Assert.That(claim.AttemptCount, Is.EqualTo(1));
+            Assert.That(wallet.GetBalance("coins"), Is.EqualTo(150));
+        }
+
+        [Test]
+        public async Task ClaimAsync_AfterInFlightClaimSucceeded_ReturnsRecordWithoutSending()
+        {
+            api.HoldRequests = true;
+            var inFlight = manager.ClaimAsync(RewardId, "coins", 50);
+            api.AnswerHeld(ApiResult.Success());
+            var claim = await inFlight;
+
+            var third = manager.ClaimAsync(RewardId, "coins", 50);
+
+            // Already finished: the record's status answered it, not a leftover in-flight entry.
+            Assert.That(third, Is.Not.SameAs(inFlight));
+            Assert.That(third.IsCompleted, Is.True);
+            Assert.That(await third, Is.SameAs(claim));
+            Assert.That(api.ReceivedPayloads, Has.Count.EqualTo(1));
+            Assert.That(wallet.GetBalance("coins"), Is.EqualTo(150));
+        }
+
+        [Test]
+        public async Task ClaimAsync_AfterInFlightClaimFailed_SendsAgain()
+        {
+            api.HoldRequests = true;
+            var inFlight = manager.ClaimAsync(RewardId, "coins", 50);
+            api.AnswerHeld(ApiResult.Failure(ClaimError.Timeout));
+            await inFlight;
+
+            // A stale in-flight entry would hand back the old, failed task here instead of retrying.
+            var retry = manager.ClaimAsync(RewardId, "coins", 50);
+            Assert.That(api.ReceivedPayloads, Has.Count.EqualTo(2));
+            api.AnswerHeld(ApiResult.Success());
+            var claim = await retry;
+
+            Assert.That(claim.Status, Is.EqualTo(ClaimStatus.Succeeded));
+            Assert.That(wallet.GetBalance("coins"), Is.EqualTo(150));
+        }
+
+        [Test]
+        public async Task ClaimAsync_FailedRewardIdAgain_RetriesAndGrantsOnce()
+        {
+            api.Result = ApiResult.Failure(ClaimError.Timeout);
+            var first = await manager.ClaimAsync(RewardId, "coins", 50);
+
+            api.Result = ApiResult.Success();
+            var second = await manager.ClaimAsync(RewardId, "coins", 50);
+
+            // Same record, sent a second time; the earlier failure granted nothing.
+            Assert.That(second, Is.SameAs(first));
+            Assert.That(second.Status, Is.EqualTo(ClaimStatus.Succeeded));
+            Assert.That(second.AttemptCount, Is.EqualTo(2));
+            Assert.That(api.ReceivedPayloads, Has.Count.EqualTo(2));
+            Assert.That(wallet.GetBalance("coins"), Is.EqualTo(150));
+
+            // And once it succeeded, a third call changes nothing.
+            await manager.ClaimAsync(RewardId, "coins", 50);
+            Assert.That(api.ReceivedPayloads, Has.Count.EqualTo(2));
+            Assert.That(wallet.GetBalance("coins"), Is.EqualTo(150));
+        }
+
+        [Test]
+        public async Task ClaimAsync_PendingFromPreviousSession_RetriesAndGrantsOnce()
+        {
+            // Arrange: the app was killed while the first request was in flight.
+            LaunchWithClaimFromPreviousSession(_ => { });
+
+            // Act
+            var retried = await manager.ClaimAsync(RewardId, "coins", 50);
+
+            // Assert
+            Assert.That(retried.Status, Is.EqualTo(ClaimStatus.Succeeded));
+            Assert.That(retried.AttemptCount, Is.EqualTo(2));
+            Assert.That(api.ReceivedPayloads, Has.Count.EqualTo(1));
+            Assert.That(wallet.GetBalance("coins"), Is.EqualTo(150));
+            Assert.That(SavedClaim(RewardId).Status, Is.EqualTo(ClaimStatus.Succeeded));
+        }
+
+        [Test]
+        public async Task ClaimAsync_RejectedRewardIdAgain_ReturnsRecordWithoutSending()
+        {
+            LaunchWithClaimFromPreviousSession(leftOver => leftOver.MarkRejected());
+
+            var claim = await manager.ClaimAsync(RewardId, "coins", 50);
+
+            Assert.That(claim.Status, Is.EqualTo(ClaimStatus.Rejected));
+            Assert.That(api.ReceivedPayloads, Is.Empty);
+            Assert.That(wallet.GetBalance("coins"), Is.EqualTo(100));
+        }
+
+        [Test]
+        public async Task ClaimAsync_ExistingRewardIdWithDifferentAmount_KeepsOriginalAndWarns()
+        {
+            var first = await manager.ClaimAsync(RewardId, "coins", 50);
+            LogAssert.Expect(LogType.Warning, new Regex("already claimed as 50 coins"));
+
+            var second = await manager.ClaimAsync(RewardId, "coins", 80);
+
+            Assert.That(second, Is.SameAs(first));
+            Assert.That(second.Amount, Is.EqualTo(50));
+            Assert.That(api.ReceivedPayloads, Has.Count.EqualTo(1));
+            Assert.That(wallet.GetBalance("coins"), Is.EqualTo(150));
+        }
+
+        [Test]
+        public async Task ClaimAsync_RetryWithDifferentResource_SendsTheOriginalClaim()
+        {
+            api.Result = ApiResult.Failure(ClaimError.Timeout);
+            await manager.ClaimAsync(RewardId, "coins", 50);
+            api.Result = ApiResult.Success();
+            LogAssert.Expect(LogType.Warning, new Regex("already claimed as 50 coins"));
+
+            await manager.ClaimAsync(RewardId, "lives", 1);
+
+            var retryPayload = api.ReceivedPayloads[1];
+            Assert.That(retryPayload.ResourceId, Is.EqualTo("coins"));
+            Assert.That(retryPayload.Amount, Is.EqualTo(50));
+            Assert.That(wallet.GetBalance("coins"), Is.EqualTo(150));
+            Assert.That(wallet.GetBalance("lives"), Is.EqualTo(3));
         }
 
         [Test]
