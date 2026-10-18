@@ -11,11 +11,9 @@ namespace RewardClaims.Tests
         [SetUp]
         public void SetUp()
         {
-            wallet = new ResourceWallet(new[]
-            {
+            wallet = TestWallets.Create(
                 ResourceDefinition.Create("coins", startingBalance: 100),
-                ResourceDefinition.Create("lives", startingBalance: 3, maxBalance: 5),
-            });
+                ResourceDefinition.Create("lives", startingBalance: 3, maxBalance: 5));
         }
 
         [Test]
@@ -34,7 +32,7 @@ namespace RewardClaims.Tests
                 ResourceDefinition.Create("coins", startingBalance: 50),
             };
 
-            Assert.Throws<ArgumentException>(() => new ResourceWallet(resources));
+            Assert.Throws<ArgumentException>(() => TestWallets.Create(resources));
         }
 
         [Test]

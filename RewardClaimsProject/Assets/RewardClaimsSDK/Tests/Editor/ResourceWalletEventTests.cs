@@ -13,11 +13,9 @@ namespace RewardClaims.Tests
         [SetUp]
         public void SetUp()
         {
-            wallet = new ResourceWallet(new[]
-            {
+            wallet = TestWallets.Create(
                 ResourceDefinition.Create("coins", startingBalance: 100),
-                ResourceDefinition.Create("lives", startingBalance: 3, maxBalance: 5),
-            });
+                ResourceDefinition.Create("lives", startingBalance: 3, maxBalance: 5));
 
             received = new List<(string Id, int Balance)>();
             wallet.BalanceChanged += Record;

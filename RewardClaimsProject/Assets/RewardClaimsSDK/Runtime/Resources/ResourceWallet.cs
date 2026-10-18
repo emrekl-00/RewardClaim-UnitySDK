@@ -13,17 +13,26 @@ namespace RewardClaims
     {
         private readonly Dictionary<string, ResourceDefinition> definitions = new Dictionary<string, ResourceDefinition>();
         private readonly Dictionary<string, int> balances = new Dictionary<string, int>();
+        private readonly ProgressStore store;
 
         /// <summary>Raised after a balance changes, with the resource id and the new balance.</summary>
         public event Action<string, int> BalanceChanged;
 
-        /// <summary>Creates a wallet where every resource starts at its starting balance.</summary>
+        /// <summary>Creates a wallet with the balances saved in <paramref name="store"/>.</summary>
+        /// <remarks>
+        /// A resource missing from the save (e.g. added in a game update) gets its starting balance,
+        /// and a saved balance above a (newly lowered) max is clamped to the max. Saved entries for
+        /// resources no longer in config stay in the save untouched. Internal because games get the
+        /// wallet from the SDK facade, which owns the store.
+        /// </remarks>
         /// <exception cref="ArgumentException">Two definitions share the same id.</exception>
-        public ResourceWallet(IEnumerable<ResourceDefinition> resources)
+        internal ResourceWallet(IEnumerable<ResourceDefinition> resources, ProgressStore store)
         {
             if (resources == null)
                 throw new ArgumentNullException(nameof(resources));
+            this.store = store ?? throw new ArgumentNullException(nameof(store));
 
+            var saveNeeded = false;
             foreach (var resource in resources)
             {
                 // Config.Validate() already reports duplicates to designers; this guards code that skips it.
@@ -31,8 +40,21 @@ namespace RewardClaims
                     throw new ArgumentException($"Resource id '{resource.Id}' is defined more than once.", nameof(resources));
 
                 definitions.Add(resource.Id, resource);
-                balances.Add(resource.Id, resource.StartingBalance);
+
+                var saved = FindSaved(resource.Id);
+                var balance = saved != null ? Math.Min(saved.balance, LimitOf(resource)) : resource.StartingBalance;
+                balances.Add(resource.Id, balance);
+
+                if (saved == null || saved.balance != balance)
+                {
+                    WriteBalance(resource.Id, balance);
+                    saveNeeded = true;
+                }
             }
+
+            // One write for all fixes, and none at all when the save already matched the config.
+            if (saveNeeded)
+                store.Save();
         }
 
         /// <summary>True when the wallet knows a resource with this id.</summary>
@@ -64,6 +86,7 @@ namespace RewardClaims
                 return false;
 
             balances[resourceId] -= amount;
+            Persist(resourceId);
             BalanceChanged?.Invoke(resourceId, balances[resourceId]);
             return true;
         }
@@ -75,10 +98,7 @@ namespace RewardClaims
             EnsureKnown(resourceId);
             EnsurePositive(amount);
 
-            // Without a max we still cap at int.MaxValue, so a huge reward can't overflow into a negative balance.
-            var definition = definitions[resourceId];
-            var limit = definition.HasMaxBalance ? definition.MaxBalance : int.MaxValue;
-            var room = Math.Max(0, limit - balances[resourceId]);
+            var room = Math.Max(0, LimitOf(definitions[resourceId]) - balances[resourceId]);
             var added = Math.Min(amount, room);
 
             // A fully clamped add changed nothing, so listeners have nothing to redraw.
@@ -86,8 +106,37 @@ namespace RewardClaims
                 return 0;
 
             balances[resourceId] += added;
+            Persist(resourceId);
             BalanceChanged?.Invoke(resourceId, balances[resourceId]);
             return added;
+        }
+
+        // Without a max we still cap at int.MaxValue, so a huge reward can't overflow into a negative balance.
+        private static int LimitOf(ResourceDefinition definition)
+        {
+            return definition.HasMaxBalance ? definition.MaxBalance : int.MaxValue;
+        }
+
+        private ResourceBalance FindSaved(string resourceId)
+        {
+            return store.Data.balances.Find(entry => entry.resourceId == resourceId);
+        }
+
+        private void WriteBalance(string resourceId, int balance)
+        {
+            var saved = FindSaved(resourceId);
+            if (saved != null)
+                saved.balance = balance;
+            else
+                store.Data.balances.Add(new ResourceBalance { resourceId = resourceId, balance = balance });
+        }
+
+        // Saved before BalanceChanged is raised, so a listener that throws can't stop the new balance
+        // from reaching disk.
+        private void Persist(string resourceId)
+        {
+            WriteBalance(resourceId, balances[resourceId]);
+            store.Save();
         }
 
         private void EnsureKnown(string resourceId)
