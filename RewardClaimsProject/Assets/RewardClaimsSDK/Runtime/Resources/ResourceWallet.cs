@@ -14,6 +14,9 @@ namespace RewardClaims
         private readonly Dictionary<string, ResourceDefinition> definitions = new Dictionary<string, ResourceDefinition>();
         private readonly Dictionary<string, int> balances = new Dictionary<string, int>();
 
+        /// <summary>Raised after a balance changes, with the resource id and the new balance.</summary>
+        public event Action<string, int> BalanceChanged;
+
         /// <summary>Creates a wallet where every resource starts at its starting balance.</summary>
         /// <exception cref="ArgumentException">Two definitions share the same id.</exception>
         public ResourceWallet(IEnumerable<ResourceDefinition> resources)
@@ -61,6 +64,7 @@ namespace RewardClaims
                 return false;
 
             balances[resourceId] -= amount;
+            BalanceChanged?.Invoke(resourceId, balances[resourceId]);
             return true;
         }
 
@@ -77,7 +81,12 @@ namespace RewardClaims
             var room = Math.Max(0, limit - balances[resourceId]);
             var added = Math.Min(amount, room);
 
+            // A fully clamped add changed nothing, so listeners have nothing to redraw.
+            if (added == 0)
+                return 0;
+
             balances[resourceId] += added;
+            BalanceChanged?.Invoke(resourceId, balances[resourceId]);
             return added;
         }
 
