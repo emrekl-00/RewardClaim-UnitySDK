@@ -4,6 +4,6 @@ namespace RewardClaims
     public static class SdkInfo
     {
         /// <summary>Semantic version of the SDK, bumped on every release.</summary>
-        public const string Version = "0.1.0";
+        public const string Version = "1.0.0";
     }
 }

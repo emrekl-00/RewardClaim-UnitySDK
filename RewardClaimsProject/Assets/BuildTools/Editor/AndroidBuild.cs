@@ -23,6 +23,9 @@ namespace BuildTools
         [MenuItem("Build/Android APK")]
         public static void BuildApk()
         {
+            // With --execute-method the CLI hands --output-path to Unity as "-buildOutput <absolute path>"
+            // (resolved from the shell's current folder), so that is the argument we read. Without it,
+            // e.g. from the menu, the default path is relative to the project folder.
             var options = new BuildPlayerOptions
             {
                 scenes = EditorBuildSettings.scenes.Where(s => s.enabled).Select(s => s.path).ToArray(),
